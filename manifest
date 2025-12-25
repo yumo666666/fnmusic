@@ -1,0 +1,12 @@
+appname               = fnmusic
+version               = 1.0.0
+display_name          = 音乐播放器
+desc                  = 本地音乐播放器（Flask），仓库：https://github.com/yumo666666/fnmusic
+arch                  = x86_64
+source                = thirdparty
+maintainer            = yumo
+distributor           = yumo
+desktop_uidir         = ui
+desktop_applaunchname = fnmusic.Application
+install_dep_apps      = python312
+service_port          = 8090

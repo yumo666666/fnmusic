@@ -1,0 +1,1237 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>音乐播放器</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/5.15.3/css/all.min.css">
+    <style>
+        html, body {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            margin: 0;
+            padding: 0;
+            height: 100%;
+            width: 100%;
+        }
+        .music-player {
+            background: rgba(255, 255, 255, 0.1);
+            backdrop-filter: blur(10px);
+            border-radius: 0;
+            box-shadow: 0 8px 32px rgba(0, 0, 0, 0.1);
+            width: 100vw;
+            height: 100vh;
+            max-width: none;
+            padding: 20px;
+            display: flex;
+            flex-direction: column;
+            overflow: hidden;
+        }
+        .progress-bar-container, .volume-bar-container {
+            cursor: pointer;
+        }
+        .progress-bar, .volume-bar {
+            background: linear-gradient(90deg, #3b82f6 0%, #8b5cf6 100%);
+            pointer-events: none; /* 让点击穿透到 container */
+        }
+        .playlist-item {
+            transition: all 0.3s ease;
+        }
+        .playlist-item:hover {
+            background: rgba(255, 255, 255, 0.1);
+        }
+        .lyrics-display {
+            background: rgba(0, 0, 0, 0.7);
+            backdrop-filter: blur(10px);
+            border-radius: 10px;
+            margin-top: 20px;
+        }
+        .lyrics-line {
+            transition: all 0.3s ease;
+        }
+        .lyrics-current {
+            color: #ffffff;
+            font-size: 1.5rem; /* text-2xl */
+            font-weight: bold;
+            opacity: 1;
+        }
+        .lyrics-other {
+            color: rgba(255, 255, 255, 0.6);
+            font-size: 1.125rem; /* text-lg */
+            opacity: 0.7;
+        }
+        /* 选中状态样式 */
+        .btn-active {
+            color: #60a5fa !important; /* text-blue-400 */
+        }
+        .btn-fav-active {
+            color: #ef4444 !important; /* text-red-500 */
+        }
+        /* 隐藏滚动条 */
+        .no-scrollbar::-webkit-scrollbar {
+            display: none;
+        }
+        .no-scrollbar {
+            -ms-overflow-style: none;
+            scrollbar-width: none;
+        }
+    </style>
+</head>
+<body>
+    <div class="music-player">
+        <!-- 主播放界面 -->
+        <div class="flex items-center space-x-6">
+            <!-- 专辑封面 -->
+            <div class="relative">
+                <img id="album-cover" src="https://picsum.photos/id/237/200/200" alt="Album Cover" class="w-48 h-48 rounded-lg shadow-lg object-cover" onerror="this.src='https://via.placeholder.com/200/000000/FFFFFF/?text=Music'">
+                <div class="absolute bottom-0 left-0 right-0 bg-black bg-opacity-50 text-white p-2 rounded-b-lg">
+                    <div id="song-name" class="text-sm font-medium">未知歌曲</div>
+                    <div id="song-artist" class="text-xs">未知艺术家</div>
+                </div>
+            </div>
+            <!-- 歌曲信息与控制 -->
+            <div class="flex-1">
+                <div class="flex items-center justify-between mb-2">
+                    <h2 id="song-title" class="text-2xl font-bold text-white">欢迎使用</h2>
+                    <button id="heart-mode-btn" class="text-gray-300 hover:text-pink-400 transition-colors" title="心动模式">
+                        <i class="fas fa-heartbeat text-xl"></i>
+                    </button>
+                </div>
+                <p id="artist" class="text-white text-opacity-80 mb-1">请选择歌曲播放</p>
+                <p id="current-song-name" class="text-white text-opacity-80 mb-6">...</p>
+                
+                <!-- 播放控制行 -->
+                <div class="flex items-center justify-between mb-4">
+                    <!-- 左侧：播放控制 -->
+                    <div class="flex items-center space-x-4">
+                        <button id="prev-btn" class="text-white text-2xl hover:text-blue-300">
+                            <i class="fas fa-step-backward"></i>
+                        </button>
+                        <button id="play-btn" class="text-white text-3xl hover:text-blue-300">
+                            <i class="fas fa-play"></i>
+                        </button>
+                        <button id="next-btn" class="text-white text-2xl hover:text-blue-300">
+                            <i class="fas fa-step-forward"></i>
+                        </button>
+                    </div>
+                    <!-- 右侧：音量控制 -->
+                    <div class="flex items-center space-x-2 flex-1 ml-6 max-w-[50%]">
+                        <button id="mute-btn" class="text-white text-xl hover:text-blue-300">
+                            <i class="fas fa-volume-up"></i>
+                        </button>
+                        <div id="volume-container" class="volume-bar-container flex-1 bg-gray-600 bg-opacity-50 rounded-full h-2">
+                            <div id="volume-bar" class="volume-bar h-2 rounded-full" style="width: 70%"></div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- 进度条 -->
+                <div class="mb-4">
+                    <div id="progress-container" class="progress-bar-container bg-gray-600 bg-opacity-50 rounded-full h-2">
+                        <div id="progress-bar" class="progress-bar h-2 rounded-full" style="width: 0%"></div>
+                    </div>
+                </div>
+
+                <!-- 底部控制按钮 -->
+                <div class="flex items-center justify-between">
+                    <!-- 左侧：时间 -->
+                    <div class="text-white text-sm font-medium">
+                        <span id="current-time">0:00</span> / <span id="duration">0:00</span>
+                    </div>
+
+                    <!-- 右侧：功能按钮 -->
+                    <div class="flex items-center space-x-6">
+                        <button id="playlist-toggle-btn" class="text-white text-xl hover:text-blue-300" title="显示/隐藏播放列表">
+                            <i class="fas fa-list"></i>
+                        </button>
+                        <button id="settings-btn" class="text-white text-xl hover:text-blue-300" title="设置">
+                            <i class="fas fa-cog"></i>
+                        </button>
+                        <button id="fav-btn" class="text-white text-xl hover:text-red-300 text-center" title="收藏/取消收藏">
+                            <i class="far fa-heart"></i>
+                        </button>
+                        <button id="lyrics-btn" class="text-white text-xl hover:text-blue-300 font-bold" title="歌词开关">
+                            词
+                        </button>
+                        <button id="mode-loop-btn" class="text-white text-xl hover:text-blue-300 text-center" title="循环模式">
+                            <i class="fas fa-sync-alt"></i>
+                        </button>
+                        <button id="mode-rand-btn" class="text-white text-xl hover:text-blue-300 text-center" title="随机播放">
+                            <i class="fas fa-random"></i>
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div class="flex-1 min-h-0 overflow-y-auto no-scrollbar">
+            <!-- 歌词显示区域 -->
+            <div id="lyrics-display" class="lyrics-display hidden p-6">
+                <div id="lyrics-content" class="text-white text-center">
+                    <!-- 歌词内容将在这里动态显示 -->
+                </div>
+            </div>
+
+            <!-- 播放列表 -->
+            <div id="playlist" class="mt-6 bg-white bg-opacity-10 rounded-lg p-4 hidden">
+                <div class="flex items-center justify-between mb-4 z-10">
+                    <div class="flex items-center space-x-4">
+                         <div id="tab-all" class="cursor-pointer text-white font-bold border-b-2 border-transparent hover:border-blue-400">全部歌曲 (<span id="song-count">0</span>)</div>
+                         <div id="tab-fav" class="cursor-pointer text-gray-400 hover:text-pink-400 border-b-2 border-transparent hover:border-pink-400">收藏歌曲 (<span id="fav-count">0</span>)</div>
+                         <span id="heart-mode-indicator" class="hidden text-pink-400 text-sm font-medium ml-2"><i class="fas fa-heart mr-1"></i>心动模式</span>
+                    </div>
+                    <i id="playlist-collapse-btn" class="fas fa-chevron-up text-white cursor-pointer hover:text-blue-300"></i>
+                </div>
+                
+                <!-- 搜索栏 -->
+                <div class="mb-4">
+                    <input type="text" id="search-input" placeholder="搜索歌曲..." class="w-full bg-gray-700 bg-opacity-50 text-white px-3 py-2 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-400 placeholder-gray-400 text-sm">
+                </div>
+
+                <div id="playlist-items" class="space-y-2 max-h-[150px] overflow-y-auto no-scrollbar">
+                    <!-- 播放列表项将动态生成 -->
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div id="settings-modal" class="fixed inset-0 hidden items-center justify-center bg-black bg-opacity-60 z-50">
+        <div class="w-full max-w-xl mx-4 bg-gray-900 bg-opacity-90 rounded-xl shadow-2xl p-6">
+            <div class="flex items-center justify-between mb-4">
+                <div class="text-white text-lg font-bold">设置</div>
+                <button id="settings-close-btn" class="text-gray-200 hover:text-white" title="关闭">
+                    <i class="fas fa-times"></i>
+                </button>
+            </div>
+
+            <div class="mb-2 text-white text-sm font-medium">音乐目录</div>
+            <input id="settings-music-dir" type="text" placeholder="/vol1/1000/音乐" class="w-full bg-gray-700 bg-opacity-60 text-white px-3 py-2 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-400 placeholder-gray-400 text-sm">
+            <div id="settings-hint" class="text-gray-300 text-xs mt-2"></div>
+
+            <div class="flex items-center justify-end space-x-3 mt-5">
+                <button id="settings-refresh-btn" class="px-4 py-2 rounded-lg bg-gray-700 hover:bg-gray-600 text-white text-sm">重新扫描</button>
+                <button id="settings-save-btn" class="px-4 py-2 rounded-lg bg-blue-600 hover:bg-blue-500 text-white text-sm">保存</button>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        class MusicPlayer {
+            constructor() {
+                this.audio = new Audio();
+                this.fullPlaylist = []; // 完整列表
+                this.displayPlaylist = []; // 当前显示的列表（全部或收藏）
+                this.currentSongIndex = -1; // 在displayPlaylist中的索引
+                this.isPlaying = false;
+                this.favorites = new Set();
+                this.loopMode = 0; // 0: 顺序循环, 1: 随机播放, 2: 单曲循环
+                this.lyricsMode = 0; // 0: 关, 1: 2行, 2: 4行
+                this.apiUrl = '';
+                this.isHeartMode = false; // 是否为心动模式（收藏列表）
+                this.currentLyrics = []; // 当前歌词数据 {time: s, text: str}
+                this.searchTerm = ''; // 搜索关键词
+                this.isFavView = false;
+                this.lastPersistAt = 0;
+                this.pendingRestoreState = null;
+                
+                this.init();
+            }
+
+            async init() {
+                this.pendingRestoreState = this.readPersistedState();
+                await this.loadFavorites();
+                this.setupEventListeners();
+                this.ensureFullscreen();
+                window.addEventListener('pointerdown', () => this.ensureFullscreen(), { once: true });
+                await this.loadFiles(false);
+
+                const restored = await this.restoreFromPendingState();
+                if (!restored) {
+                    if (this.displayPlaylist.length > 0) {
+                        this.loadSong(0, false);
+                    }
+                    this.setLoopMode(0);
+                    this.setLyricsMode(0);
+                    this.audio.volume = 0.7;
+                    document.getElementById('volume-bar').style.width = `${this.audio.volume * 100}%`;
+                    this.persistStateThrottled(true);
+                }
+            }
+
+            async ensureFullscreen() {
+                const doc = document;
+                if (doc.fullscreenElement) return true;
+                const el = doc.documentElement;
+                const request = el.requestFullscreen || el.webkitRequestFullscreen || el.mozRequestFullScreen || el.msRequestFullscreen;
+                if (!request) return false;
+                try {
+                    const ret = request.call(el);
+                    if (ret && typeof ret.then === 'function') {
+                        await ret;
+                    }
+                    return true;
+                } catch (e) {
+                    return false;
+                }
+            }
+
+            setupEventListeners() {
+                // 播放控制
+                document.getElementById('play-btn').addEventListener('click', () => this.togglePlay());
+                document.getElementById('prev-btn').addEventListener('click', () => this.playPrev());
+                document.getElementById('next-btn').addEventListener('click', () => this.playNext());
+
+                // 模式控制
+                document.getElementById('mode-loop-btn').addEventListener('click', () => {
+                    if (this.loopMode === 0) {
+                        this.setLoopMode(2); // 顺序 -> 单曲
+                    } else if (this.loopMode === 2) {
+                        this.setLoopMode(0); // 单曲 -> 顺序
+                    } else {
+                        this.setLoopMode(0); // 随机 -> 顺序
+                    }
+                });
+                document.getElementById('mode-rand-btn').addEventListener('click', () => this.setLoopMode(1));
+                
+                // 收藏当前
+                document.getElementById('fav-btn').addEventListener('click', () => this.toggleFavorite());
+
+                // 列表切换 (原 playlist-toggle-btn 现用于显示/隐藏列表)
+                document.getElementById('playlist-toggle-btn').addEventListener('click', () => {
+                    const playlist = document.getElementById('playlist');
+                    if (playlist.classList.contains('hidden')) {
+                        playlist.classList.remove('hidden');
+                    } else {
+                        playlist.classList.add('hidden');
+                    }
+                    this.persistStateThrottled(true);
+                });
+
+                document.getElementById('settings-btn').addEventListener('click', () => this.openSettings());
+                document.getElementById('settings-close-btn').addEventListener('click', () => this.closeSettings());
+                document.getElementById('settings-save-btn').addEventListener('click', () => this.saveSettings());
+                document.getElementById('settings-refresh-btn').addEventListener('click', () => this.refreshFiles());
+                document.getElementById('settings-modal').addEventListener('click', (e) => {
+                    if (e.target && e.target.id === 'settings-modal') {
+                        this.closeSettings();
+                    }
+                });
+                
+                // document.getElementById('fav-list-btn').addEventListener('click', () => this.switchPlaylistMode(true)); // 收藏 (已移除)
+                // 顶部Tab切换
+                document.getElementById('tab-all').addEventListener('click', () => this.switchPlaylistMode(false));
+                document.getElementById('tab-fav').addEventListener('click', () => this.switchPlaylistMode(true));
+
+                // 心动模式
+                document.getElementById('heart-mode-btn').addEventListener('click', () => this.toggleHeartMode());
+
+                // 列表折叠
+                document.getElementById('playlist-collapse-btn').addEventListener('click', () => {
+                    const items = document.getElementById('playlist-items');
+                    const btn = document.getElementById('playlist-collapse-btn');
+                    // 注意：现在我们不仅要隐藏items，也要隐藏搜索栏，或者整个播放列表内容？
+                    // 用户说的是 "隐藏或展开 div 这一整块"，指的可能是整个 #playlist，
+                    // 但 toggle 按钮已经做了这个。
+                    // 之前的逻辑是隐藏 playlist-items。
+                    // 现在的结构里有 search bar。
+                    // 既然 toggle 按钮隐藏整个 #playlist，那这个箭头按钮应该隐藏内容保留 header？
+                    // 保持原逻辑：隐藏 playlist-items。
+                    // 顺便把 search bar 也隐藏了吧，不然怪怪的。
+                    const searchBar = document.getElementById('search-input').parentElement;
+                    
+                    if (items.classList.contains('hidden')) {
+                        items.classList.remove('hidden');
+                        searchBar.classList.remove('hidden');
+                        btn.className = 'fas fa-chevron-up text-white cursor-pointer hover:text-blue-300';
+                    } else {
+                        items.classList.add('hidden');
+                        searchBar.classList.add('hidden');
+                        btn.className = 'fas fa-chevron-down text-white cursor-pointer hover:text-blue-300';
+                    }
+                    this.persistStateThrottled(true);
+                });
+                
+                // 搜索输入
+                document.getElementById('search-input').addEventListener('input', (e) => {
+                    this.searchTerm = e.target.value.toLowerCase();
+                    this.renderPlaylist();
+                    this.persistStateThrottled(true);
+                });
+
+                // 歌词开关
+                document.getElementById('lyrics-btn').addEventListener('click', () => this.toggleLyricsMode());
+
+                // Audio 事件
+                this.audio.addEventListener('timeupdate', () => {
+                    this.updateProgress();
+                    this.updateLyricsDisplay();
+                    this.persistStateThrottled();
+                });
+                this.audio.addEventListener('ended', () => this.handleSongEnd());
+                this.audio.addEventListener('loadedmetadata', () => {
+                    document.getElementById('duration').textContent = this.formatTime(this.audio.duration);
+                });
+
+                window.addEventListener('beforeunload', () => this.persistStateThrottled(true));
+                document.addEventListener('visibilitychange', () => {
+                    if (document.visibilityState === 'hidden') {
+                        this.persistStateThrottled(true);
+                    }
+                });
+
+                // 进度条拖动
+                this.setupDraggable('progress-container', (percent) => {
+                    if (this.audio.duration) {
+                        this.audio.currentTime = this.audio.duration * percent;
+                    }
+                });
+
+                // 音量条拖动
+                this.setupDraggable('volume-container', (percent) => {
+                    this.audio.volume = percent;
+                    document.getElementById('volume-bar').style.width = `${percent * 100}%`;
+                    this.persistStateThrottled();
+                });
+            }
+
+            setupDraggable(containerId, callback) {
+                const container = document.getElementById(containerId);
+                let isDragging = false;
+
+                const update = (e) => {
+                    const rect = container.getBoundingClientRect();
+                    let x = e.clientX - rect.left;
+                    if (x < 0) x = 0;
+                    if (x > rect.width) x = rect.width;
+                    const percent = x / rect.width;
+                    callback(percent);
+                };
+
+                container.addEventListener('mousedown', (e) => {
+                    isDragging = true;
+                    update(e);
+                });
+
+                document.addEventListener('mousemove', (e) => {
+                    if (isDragging) {
+                        update(e);
+                    }
+                });
+
+                document.addEventListener('mouseup', () => {
+                    isDragging = false;
+                });
+            }
+
+            async loadFiles(autoSelectFirst = true) {
+                try {
+                    const res = await fetch(`${this.apiUrl}/api/files`);
+                    const files = await res.json();
+                    this.fullPlaylist = files;
+                    this.switchPlaylistMode(false); // 默认显示全部
+                    if (autoSelectFirst && this.displayPlaylist.length > 0) {
+                        this.loadSong(0, false);
+                    }
+                } catch (e) {
+                    console.error('加载文件失败', e);
+                }
+            }
+
+            async loadFavorites() {
+                try {
+                    const res = await fetch(`${this.apiUrl}/api/favorites`);
+                    const favs = await res.json();
+                    this.favorites = new Set(favs);
+                } catch (e) {
+                    console.error('加载收藏失败', e);
+                }
+            }
+
+            /**
+             * 打开设置弹窗并加载当前音乐目录。
+             */
+            async openSettings() {
+                const modal = document.getElementById('settings-modal');
+                const input = document.getElementById('settings-music-dir');
+                const hint = document.getElementById('settings-hint');
+
+                modal.classList.remove('hidden');
+                modal.classList.add('flex');
+                hint.textContent = '加载中...';
+
+                try {
+                    const res = await fetch(`${this.apiUrl}/api/config`);
+                    const data = await res.json();
+                    input.value = data.music_directory || '';
+                    hint.textContent = `当前生效目录：${data.music_dir_effective || '未设置'}`;
+                    input.focus();
+                } catch (e) {
+                    hint.textContent = '加载失败，请稍后重试';
+                }
+            }
+
+            /**
+             * 关闭设置弹窗。
+             */
+            closeSettings() {
+                const modal = document.getElementById('settings-modal');
+                modal.classList.add('hidden');
+                modal.classList.remove('flex');
+            }
+
+            /**
+             * 保存音乐目录设置，并在保存成功后重新扫描歌曲列表。
+             */
+            async saveSettings() {
+                const input = document.getElementById('settings-music-dir');
+                const hint = document.getElementById('settings-hint');
+                const value = (input.value || '').trim();
+                if (!value) {
+                    hint.textContent = '音乐目录不能为空';
+                    return;
+                }
+
+                hint.textContent = '保存中...';
+                try {
+                    const res = await fetch(`${this.apiUrl}/api/config/music_directory`, {
+                        method: 'POST',
+                        headers: {'Content-Type': 'application/json'},
+                        body: JSON.stringify({music_directory: value})
+                    });
+                    const data = await res.json();
+                    if (!res.ok) {
+                        hint.textContent = data && data.error ? `保存失败：${data.error}` : '保存失败';
+                        return;
+                    }
+                    hint.textContent = `保存成功，当前生效目录：${data.music_dir_effective || value}`;
+                    await this.refreshFiles();
+                } catch (e) {
+                    hint.textContent = '保存失败，请稍后重试';
+                }
+            }
+
+            /**
+             * 重新扫描音乐目录并刷新列表。
+             */
+            async refreshFiles() {
+                await this.loadFiles();
+                if (this.isHeartMode) {
+                    this.switchPlaylistMode(true, false, false);
+                } else {
+                    this.switchPlaylistMode(false, false, false);
+                }
+            }
+
+            toggleHeartMode() {
+                this.isHeartMode = !this.isHeartMode;
+                const btn = document.getElementById('heart-mode-btn');
+                const indicator = document.getElementById('heart-mode-indicator');
+                
+                if (this.isHeartMode) {
+                    btn.classList.remove('text-gray-300');
+                    btn.classList.add('text-pink-400');
+                    indicator.classList.remove('hidden');
+
+                    // 开启心动模式逻辑
+                    // 1. 切换到收藏列表
+                    // 2. 如果当前歌曲不在收藏列表，立即切换到收藏列表的歌（根据循环模式）
+                    // 3. 如果当前歌曲在收藏列表，继续播放，下一首从收藏列表取
+                    
+                    // 先切换列表显示（但不重置播放，除非需要）
+                    // autoExpand = false: 不自动展开列表
+                    this.switchPlaylistMode(true, false, false); 
+
+                    const currentSong = this.displayPlaylist[this.currentSongIndex]; // 注意这里displayPlaylist已经是favorites了
+                    
+                    // 检查当前播放的歌曲是否在收藏列表中
+                    // 获取当前播放路径
+                    const currentPathMatch = this.audio.src.match(/path=([^&]+)/);
+                    let currentPath = '';
+                    if (currentPathMatch) {
+                        currentPath = decodeURIComponent(currentPathMatch[1]);
+                    }
+
+                    const isInFav = this.favorites.has(currentPath);
+
+                    if (!isInFav) {
+                        // 不在收藏列表，立即切歌
+                        if (this.displayPlaylist.length > 0) {
+                            if (this.loopMode === 1) { // 随机
+                                let nextIndex = Math.floor(Math.random() * this.displayPlaylist.length);
+                                this.loadSong(nextIndex);
+                            } else { // 顺序，第一首
+                                this.loadSong(0);
+                            }
+                        } else {
+                            // 收藏列表为空，尴尬了，提示一下？或者自动关掉心动模式？
+                            alert('收藏列表为空，无法开启心动模式');
+                            this.toggleHeartMode(); // 关掉
+                        }
+                    } else {
+                        // 在收藏列表，不做操作，等自然播放结束
+                        // 但需要更新 currentSongIndex，因为 displayPlaylist 变了
+                        const newIndex = this.displayPlaylist.findIndex(s => s.path === currentPath);
+                        if (newIndex !== -1) {
+                            this.currentSongIndex = newIndex;
+                        }
+                        this.renderPlaylist(); // 刷新高亮
+                    }
+
+                } else {
+                    btn.classList.add('text-gray-300');
+                    btn.classList.remove('text-pink-400');
+                    indicator.classList.add('hidden');
+                    
+                    // 关闭心动模式逻辑
+                    // 1. 切换回全部列表
+                    // 2. 等当前歌曲播放完，下一首从全部列表取
+                    // 3. 需要同步 currentSongIndex 到全部列表
+                    
+                    const currentPathMatch = this.audio.src.match(/path=([^&]+)/);
+                    let currentPath = '';
+                    if (currentPathMatch) {
+                        currentPath = decodeURIComponent(currentPathMatch[1]);
+                    }
+
+                    this.switchPlaylistMode(false, false, false); // autoExpand = false
+
+                    const newIndex = this.displayPlaylist.findIndex(s => s.path === currentPath);
+                    if (newIndex !== -1) {
+                        this.currentSongIndex = newIndex;
+                    }
+                    this.renderPlaylist();
+                }
+
+                this.persistStateThrottled(true);
+            }
+
+            switchPlaylistMode(isFavMode, resetPlay = true, autoExpand = true) {
+                this.isFavView = !!isFavMode;
+                // 如果是心动模式开启中，强制显示收藏列表（虽然 toggleHeartMode 也会调用这个，但为了 UI 一致性）
+                // 但这里 switchPlaylistMode 主要是 UI 切换，逻辑由 toggleHeartMode 控制
+                // 用户点击 Tab 切换时，如果开启了心动模式，是否允许切回全部？
+                // 根据需求：“后续的播放都从收藏歌曲列表里来”。
+                // 如果用户手动点“全部歌曲”Tab，可能只是想看看，不应该影响心动模式的状态？
+                // 或者点击全部歌曲就自动关闭心动模式？
+                // 需求没细说，但通常心动模式是高优先级的。
+                // 既然 Tab 是并列的，点击 Tab 应该只是切换视图，或者同时切换模式。
+                // 为了简单直观，点击 Tab 也可以联动模式。
+                
+                // 这里我们只做列表数据的切换
+                const playlistDiv = document.getElementById('playlist');
+                const title = document.getElementById('playlist-title'); // 这个元素已经被我删了换成了 tabs
+                // const indicator = document.getElementById('heart-mode-indicator'); // 这个在 header 里
+                
+                const tabAll = document.getElementById('tab-all');
+                const tabFav = document.getElementById('tab-fav');
+                const searchBar = document.getElementById('search-input').parentElement;
+                const toggleBtn = document.getElementById('playlist-toggle-btn'); // 实际上是 playlist-collapse-btn 控制可见性，但这里处理的是整体 div 的可见性
+
+                if (autoExpand) {
+                    playlistDiv.classList.remove('hidden');
+                    // 确保内容也显示 (如果之前被折叠了)
+                    const items = document.getElementById('playlist-items');
+                    // 如果 items 是 hidden 的，是否要展开？通常 switchPlaylistMode 意味着用户想看列表。
+                    // 但 playlistDiv 是最外层。
+                    // 我们的结构：#playlist -> (header + search) -> #playlist-items
+                    // 如果 autoExpand 为 true，确保 #playlist 可见。
+                }
+
+                document.getElementById('playlist-items').classList.remove('hidden'); // 展开 items
+                if (autoExpand) {
+                     searchBar.classList.remove('hidden'); // 展开 search bar
+                }
+                
+                // 只有当 autoExpand 为 true 时才改变 collapse 按钮状态为 '展开'
+                // 如果 autoExpand 为 false，保持原状？
+                // 这里的逻辑有点复杂，因为 hidden 状态可能不一致。
+                // 简单处理：如果 autoExpand 为 true，完全展开。
+                if (autoExpand) {
+                    document.getElementById('playlist-collapse-btn').className = 'fas fa-chevron-up text-white cursor-pointer hover:text-blue-300';
+                }
+
+                if (isFavMode) {
+                    this.displayPlaylist = this.fullPlaylist.filter(song => this.favorites.has(song.path));
+                    // 更新Tab样式
+                    tabAll.className = 'cursor-pointer text-gray-400 hover:text-blue-400 border-b-2 border-transparent hover:border-blue-400';
+                    tabFav.className = 'cursor-pointer text-white font-bold border-b-2 border-pink-400';
+                } else {
+                    this.displayPlaylist = this.fullPlaylist;
+                     // 更新Tab样式
+                    tabAll.className = 'cursor-pointer text-white font-bold border-b-2 border-blue-400';
+                    tabFav.className = 'cursor-pointer text-gray-400 hover:text-pink-400 border-b-2 border-transparent hover:border-pink-400';
+                }
+                
+                document.getElementById('song-count').textContent = this.fullPlaylist.length;
+                document.getElementById('fav-count').textContent = this.fullPlaylist.filter(s => this.favorites.has(s.path)).length;
+
+                // 重新计算 index
+                if (!resetPlay) {
+                     // 保持 index 同步
+                     // 这个在 toggleHeartMode 里做了，或者在这里做通用的
+                } else {
+                     // 如果是点击 Tab 切换，通常我们希望看到列表变了，但正在播放的歌不停
+                     // 所以我们要找到正在播放的歌在新列表里的位置
+                     const currentPathMatch = this.audio.src.match(/path=([^&]+)/);
+                     if (currentPathMatch) {
+                         const currentPath = decodeURIComponent(currentPathMatch[1]);
+                         const newIndex = this.displayPlaylist.findIndex(s => s.path === currentPath);
+                         if (newIndex !== -1) {
+                             this.currentSongIndex = newIndex;
+                         } else {
+                             // 如果当前歌不在新列表里（比如切到收藏，但当前歌未收藏）
+                             this.currentSongIndex = -1; 
+                         }
+                     }
+                }
+                
+                this.renderPlaylist();
+            }
+
+            renderPlaylist() {
+                const container = document.getElementById('playlist-items');
+                container.innerHTML = '';
+                
+                // 过滤
+                const filteredPlaylist = this.displayPlaylist.filter(song => {
+                    const name = song.name.replace(song.type, '').toLowerCase();
+                    const artist = (song.artist || '').toLowerCase();
+                    return name.includes(this.searchTerm) || artist.includes(this.searchTerm);
+                });
+
+                filteredPlaylist.forEach((song, index) => {
+                    // 注意：这里的 index 是过滤后的索引，但点击时我们需要找到它在 displayPlaylist 中的真实索引
+                    // 或者我们直接传 song 对象去 loadSong (需要修改 loadSong 逻辑)
+                    // 或者反查索引
+                    
+                    const div = document.createElement('div');
+                    div.className = 'playlist-item flex items-center justify-between p-2 rounded cursor-pointer';
+                    const name = song.name.replace(song.type, '');
+                    const artist = song.artist || '未知艺术家';
+                    
+                    // 检查是否是当前播放的歌 (通过路径判断)
+                    const isCurrent = this.audio.src.includes(encodeURIComponent(song.path));
+                    
+                    div.innerHTML = `
+                        <div class="flex items-center space-x-3 w-full overflow-hidden">
+                            <i class="fas fa-music ${isCurrent ? 'text-blue-400' : 'text-gray-400'} flex-shrink-0"></i>
+                            <div class="flex flex-col overflow-hidden">
+                                <span class="text-white truncate text-sm">${name}</span>
+                                <span class="text-gray-400 text-xs truncate">${artist}</span>
+                            </div>
+                        </div>
+                    `;
+                    div.addEventListener('click', () => {
+                        // 在 displayPlaylist 中找到这个 song 的索引
+                        const realIndex = this.displayPlaylist.findIndex(s => s.path === song.path);
+                        if (realIndex !== -1) {
+                            this.loadSong(realIndex, true);
+                        }
+                    });
+                    container.appendChild(div);
+                });
+            }
+
+            async loadSong(index, autoPlay = true) {
+                if (index < 0 || index >= this.displayPlaylist.length) return;
+                
+                const song = this.displayPlaylist[index];
+                
+                // 如果在心动模式下手动播放了非收藏歌曲，自动关闭心动模式
+                if (this.isHeartMode && !this.favorites.has(song.path)) {
+                    this.toggleHeartMode();
+                    // 注意：toggleHeartMode 可能会重置 currentSongIndex (基于之前的歌曲)，
+                    // 但我们马上会在下面更新 currentSongIndex，所以没问题。
+                    // 并且因为我们在 "全部歌曲" 列表 (能点到非收藏歌说明在这个列表)，
+                    // toggleHeartMode 切换回全部歌曲模式，列表内容不变，index 依然有效。
+                }
+
+                this.currentSongIndex = index;
+                const name = song.name.replace(song.type, '');
+                
+                // 更新UI
+                document.getElementById('song-title').textContent = name;
+                document.getElementById('artist').textContent = song.artist || '未知艺术家';
+                document.getElementById('current-song-name').textContent = song.album || '未知专辑';
+                document.getElementById('song-name').textContent = name;
+                document.getElementById('song-artist').textContent = song.artist || '未知艺术家';
+                
+                // 获取封面
+                const img = document.getElementById('album-cover');
+                if (song.cover_path) {
+                    img.src = `${this.apiUrl}/api/play?path=${encodeURIComponent(song.cover_path)}`;
+                } else {
+                    img.src = 'https://picsum.photos/id/237/200/200';
+                }
+
+                const playUrl = `${this.apiUrl}/api/play?path=${encodeURIComponent(song.path)}`;
+                // 只有路径变了才重载
+                if (this.audio.src !== playUrl) {
+                    this.audio.src = playUrl;
+                    if (autoPlay) {
+                        this.play();
+                    } else {
+                        this.pause();
+                    }
+                } else {
+                     if (autoPlay && !this.isPlaying) this.play();
+                }
+                
+                this.updateFavoriteBtn();
+                this.renderPlaylist(); // 更新高亮
+                
+                // 加载歌词
+                this.currentLyrics = [];
+                document.getElementById('lyrics-content').innerHTML = '';
+                if (this.lyricsMode > 0) {
+                    await this.fetchLyrics();
+                }
+
+                this.persistStateThrottled(true);
+            }
+
+            togglePlay() {
+                if (this.isPlaying) this.pause();
+                else this.play();
+            }
+
+            play() {
+                this.audio.play().catch(e => console.error(e));
+                this.isPlaying = true;
+                this.updatePlayBtn();
+                this.persistStateThrottled(true);
+            }
+
+            pause() {
+                this.audio.pause();
+                this.isPlaying = false;
+                this.updatePlayBtn();
+                this.persistStateThrottled(true);
+            }
+
+            updatePlayBtn() {
+                const icon = document.querySelector('#play-btn i');
+                icon.className = this.isPlaying ? 'fas fa-pause' : 'fas fa-play';
+            }
+
+            playNext() {
+                if (this.displayPlaylist.length === 0) return;
+                
+                if (this.loopMode === 2) { // 单曲循环
+                    this.loadSong(this.currentSongIndex);
+                    return;
+                }
+
+                if (this.loopMode === 1) { // 随机
+                    let nextIndex = Math.floor(Math.random() * this.displayPlaylist.length);
+                    this.loadSong(nextIndex);
+                } else { // 顺序
+                    let nextIndex = (this.currentSongIndex + 1) % this.displayPlaylist.length;
+                    this.loadSong(nextIndex);
+                }
+            }
+
+            playPrev() {
+                if (this.displayPlaylist.length === 0) return;
+                let prevIndex = (this.currentSongIndex - 1 + this.displayPlaylist.length) % this.displayPlaylist.length;
+                this.loadSong(prevIndex);
+            }
+
+            handleSongEnd() {
+                this.playNext();
+            }
+
+            setLoopMode(mode) {
+                this.loopMode = mode;
+                const loopBtn = document.getElementById('mode-loop-btn');
+                const randBtn = document.getElementById('mode-rand-btn');
+                
+                // 重置样式
+                loopBtn.classList.remove('btn-active');
+                randBtn.classList.remove('btn-active');
+                
+                // 默认内容 (顺序循环)
+                let loopHtml = '<i class="fas fa-sync-alt"></i>';
+                loopBtn.title = '顺序循环';
+
+                if (mode === 0) { // 顺序
+                    loopBtn.classList.add('btn-active');
+                } else if (mode === 1) { // 随机
+                    randBtn.classList.add('btn-active');
+                } else if (mode === 2) { // 单曲
+                    loopBtn.classList.add('btn-active');
+                    // 单曲图标：中间加个1
+                    loopHtml = `
+                        <div class="relative inline-flex items-center justify-center">
+                            <i class="fas fa-sync-alt"></i>
+                            <span class="absolute text-[10px] font-bold" style="top: 50%; left: 50%; transform: translate(-50%, -50%);">1</span>
+                        </div>
+                    `;
+                    loopBtn.title = '单曲循环';
+                }
+                
+                loopBtn.innerHTML = loopHtml;
+                this.persistStateThrottled(true);
+            }
+
+            async toggleFavorite() {
+                if (this.currentSongIndex === -1 && this.displayPlaylist.length === 0) return;
+                const song = this.displayPlaylist[this.currentSongIndex];
+                if (!song) return;
+                const path = song.path;
+                
+                const isFav = this.favorites.has(path);
+                const method = isFav ? 'DELETE' : 'POST';
+                
+                try {
+                    const res = await fetch(`${this.apiUrl}/api/favorites`, {
+                        method: method,
+                        headers: {'Content-Type': 'application/json'},
+                        body: JSON.stringify({path: path})
+                    });
+                    const data = await res.json();
+                    if (data.status === 'added') this.favorites.add(path);
+                    else if (data.status === 'removed') this.favorites.delete(path);
+                    
+                    this.updateFavoriteBtn();
+                    // 如果在心动模式下取消收藏，刷新列表
+                    if (this.isHeartMode && method === 'DELETE') {
+                        this.switchPlaylistMode(true);
+                    }
+                } catch (e) {
+                    console.error(e);
+                }
+            }
+
+            updateFavoriteBtn() {
+                if (this.currentSongIndex === -1 && this.displayPlaylist.length === 0) return;
+                const song = this.displayPlaylist[this.currentSongIndex];
+                if (!song) return;
+
+                const btn = document.querySelector('#fav-btn i');
+                const isFav = this.favorites.has(song.path);
+                
+                if (isFav) {
+                    btn.className = 'fas fa-heart';
+                    document.getElementById('fav-btn').classList.add('btn-fav-active');
+                } else {
+                    btn.className = 'far fa-heart';
+                    document.getElementById('fav-btn').classList.remove('btn-fav-active');
+                }
+            }
+
+            updateProgress() {
+                if (!this.audio.duration) return;
+                const percent = (this.audio.currentTime / this.audio.duration) * 100;
+                document.getElementById('progress-bar').style.width = `${percent}%`;
+                document.getElementById('current-time').textContent = this.formatTime(this.audio.currentTime);
+            }
+
+            formatTime(seconds) {
+                const m = Math.floor(seconds / 60);
+                const s = Math.floor(seconds % 60);
+                return `${m}:${s.toString().padStart(2, '0')}`;
+            }
+
+            toggleLyricsMode() {
+                const display = document.getElementById('lyrics-display');
+                this.lyricsMode = (this.lyricsMode + 1) % 3;
+                
+                if (this.lyricsMode === 0) {
+                    display.classList.add('hidden');
+                } else {
+                    display.classList.remove('hidden');
+                    if (this.currentLyrics.length === 0) {
+                        this.fetchLyrics();
+                    } else {
+                        this.updateLyricsDisplay(); // 立即刷新显示
+                    }
+                }
+
+                this.persistStateThrottled(true);
+            }
+
+            setLyricsMode(mode) {
+                const m = Number(mode);
+                if (![0, 1, 2].includes(m)) return;
+                const display = document.getElementById('lyrics-display');
+                this.lyricsMode = m;
+                if (m === 0) {
+                    display.classList.add('hidden');
+                } else {
+                    display.classList.remove('hidden');
+                    if (this.currentLyrics.length === 0) {
+                        this.fetchLyrics();
+                    } else {
+                        this.updateLyricsDisplay();
+                    }
+                }
+            }
+
+            readPersistedState() {
+                try {
+                    const raw = localStorage.getItem('fnmusic.playerState');
+                    if (!raw) return null;
+                    const state = JSON.parse(raw);
+                    if (!state || typeof state !== 'object') return null;
+                    return state;
+                } catch (e) {
+                    return null;
+                }
+            }
+
+            getCurrentSongPath() {
+                const match = (this.audio.src || '').match(/path=([^&]+)/);
+                if (!match) return '';
+                try {
+                    return decodeURIComponent(match[1]);
+                } catch (e) {
+                    return '';
+                }
+            }
+
+            buildPersistedState() {
+                const playlist = document.getElementById('playlist');
+                const items = document.getElementById('playlist-items');
+                const searchBar = document.getElementById('search-input').parentElement;
+
+                return {
+                    songPath: this.getCurrentSongPath(),
+                    time: Number.isFinite(this.audio.currentTime) ? this.audio.currentTime : 0,
+                    isPlaying: !!this.isPlaying,
+                    loopMode: this.loopMode,
+                    lyricsMode: this.lyricsMode,
+                    volume: Number.isFinite(this.audio.volume) ? this.audio.volume : 0.7,
+                    isHeartMode: !!this.isHeartMode,
+                    isFavView: !!this.isFavView,
+                    playlistVisible: playlist ? !playlist.classList.contains('hidden') : false,
+                    playlistItemsVisible: items ? !items.classList.contains('hidden') : true,
+                    searchVisible: searchBar ? !searchBar.classList.contains('hidden') : true,
+                    searchTerm: this.searchTerm || ''
+                };
+            }
+
+            persistStateThrottled(force = false) {
+                const now = Date.now();
+                if (!force && now - this.lastPersistAt < 800) return;
+                this.lastPersistAt = now;
+                try {
+                    localStorage.setItem('fnmusic.playerState', JSON.stringify(this.buildPersistedState()));
+                } catch (e) {
+                }
+            }
+
+            applyHeartModeUI(enabled) {
+                const btn = document.getElementById('heart-mode-btn');
+                const indicator = document.getElementById('heart-mode-indicator');
+                if (!btn || !indicator) return;
+                if (enabled) {
+                    btn.classList.remove('text-gray-300');
+                    btn.classList.add('text-pink-400');
+                    indicator.classList.remove('hidden');
+                } else {
+                    btn.classList.add('text-gray-300');
+                    btn.classList.remove('text-pink-400');
+                    indicator.classList.add('hidden');
+                }
+            }
+
+            async restoreFromPendingState() {
+                if (!this.pendingRestoreState) return false;
+                return await this.restoreFromState(this.pendingRestoreState);
+            }
+
+            async restoreFromState(state) {
+                const vol = Number(state.volume);
+                if (Number.isFinite(vol) && vol >= 0 && vol <= 1) {
+                    this.audio.volume = vol;
+                    document.getElementById('volume-bar').style.width = `${vol * 100}%`;
+                }
+
+                const playlist = document.getElementById('playlist');
+                const items = document.getElementById('playlist-items');
+                const searchBar = document.getElementById('search-input').parentElement;
+                const wantPlaylistVisible = !!state.playlistVisible;
+                const wantItemsVisible = state.playlistItemsVisible !== false;
+                const wantSearchVisible = state.searchVisible !== false;
+                if (playlist) {
+                    if (wantPlaylistVisible) playlist.classList.remove('hidden');
+                    else playlist.classList.add('hidden');
+                }
+                if (items) {
+                    if (wantItemsVisible) items.classList.remove('hidden');
+                    else items.classList.add('hidden');
+                }
+                if (searchBar) {
+                    if (wantSearchVisible) searchBar.classList.remove('hidden');
+                    else searchBar.classList.add('hidden');
+                }
+
+                const term = (state.searchTerm || '').toString();
+                this.searchTerm = term.toLowerCase();
+                const searchInput = document.getElementById('search-input');
+                if (searchInput) searchInput.value = term;
+
+                const targetLoopMode = Number(state.loopMode);
+                if ([0, 1, 2].includes(targetLoopMode)) {
+                    this.setLoopMode(targetLoopMode);
+                }
+
+                const targetLyricsMode = Number(state.lyricsMode);
+                if ([0, 1, 2].includes(targetLyricsMode)) {
+                    this.lyricsMode = targetLyricsMode;
+                } else {
+                    this.lyricsMode = 0;
+                }
+
+                const wantHeart = !!state.isHeartMode;
+                this.isHeartMode = wantHeart;
+                this.applyHeartModeUI(wantHeart);
+
+                const wantFavView = wantHeart ? true : !!state.isFavView;
+                this.switchPlaylistMode(wantFavView, false, wantPlaylistVisible);
+
+                if (items) {
+                    if (wantItemsVisible) items.classList.remove('hidden');
+                    else items.classList.add('hidden');
+                }
+                if (searchBar) {
+                    if (wantSearchVisible) searchBar.classList.remove('hidden');
+                    else searchBar.classList.add('hidden');
+                }
+
+                const songPath = (state.songPath || '').toString();
+                let idx = songPath ? this.displayPlaylist.findIndex(s => s.path === songPath) : -1;
+                if (idx === -1 && wantHeart) {
+                    this.isHeartMode = false;
+                    this.applyHeartModeUI(false);
+                    this.switchPlaylistMode(false, false, wantPlaylistVisible);
+                    idx = songPath ? this.displayPlaylist.findIndex(s => s.path === songPath) : -1;
+                }
+
+                if (idx === -1) {
+                    this.setLyricsMode(this.lyricsMode);
+                    this.renderPlaylist();
+                    this.persistStateThrottled(true);
+                    return false;
+                }
+
+                const wasPlaying = !!state.isPlaying;
+                await this.loadSong(idx, wasPlaying);
+                this.setLyricsMode(this.lyricsMode);
+
+                if (items) {
+                    if (wantItemsVisible) items.classList.remove('hidden');
+                    else items.classList.add('hidden');
+                }
+                if (searchBar) {
+                    if (wantSearchVisible) searchBar.classList.remove('hidden');
+                    else searchBar.classList.add('hidden');
+                }
+
+                const desiredTime = Number(state.time);
+                if (Number.isFinite(desiredTime) && desiredTime > 0) {
+                    const applyTime = () => {
+                        try {
+                            const maxT = Number.isFinite(this.audio.duration) && this.audio.duration > 0 ? this.audio.duration - 0.2 : desiredTime;
+                            this.audio.currentTime = Math.max(0, Math.min(desiredTime, maxT));
+                        } catch (e) {
+                        }
+                    };
+
+                    if (this.audio.readyState >= 1) {
+                        applyTime();
+                    } else {
+                        const handler = () => {
+                            this.audio.removeEventListener('loadedmetadata', handler);
+                            applyTime();
+                        };
+                        this.audio.addEventListener('loadedmetadata', handler);
+                    }
+                }
+
+                this.persistStateThrottled(true);
+                return true;
+            }
+
+            async fetchLyrics() {
+                if (this.currentSongIndex === -1 && this.displayPlaylist.length === 0) return;
+                const song = this.displayPlaylist[this.currentSongIndex];
+                if (!song) return;
+                
+                try {
+                    const res = await fetch(`${this.apiUrl}/api/lyrics?song_path=${encodeURIComponent(song.path)}`);
+                    const data = await res.json();
+                    const rawLyrics = data.lyrics || [];
+                    this.parseLyrics(rawLyrics);
+                    this.updateLyricsDisplay();
+                } catch (e) {
+                    console.error(e);
+                }
+            }
+
+            parseLyrics(lines) {
+                this.currentLyrics = lines.map(line => {
+                    const match = line.match(/\[(\d{2}):(\d{2})(?:\.(\d{2,3}))?\](.*)/);
+                    if (match) {
+                        const min = parseInt(match[1]);
+                        const sec = parseInt(match[2]);
+                        const ms = match[3] ? parseInt(match[3].padEnd(3, '0')) : 0;
+                        const time = min * 60 + sec + ms / 1000;
+                        const text = match[4].trim();
+                        return { time, text };
+                    } else {
+                        return { time: 0, text: line }; 
+                    }
+                }).filter(l => l.text);
+            }
+
+            updateLyricsDisplay() {
+                if (this.lyricsMode === 0 || this.currentLyrics.length === 0) return;
+                
+                const currentTime = this.audio.currentTime;
+                let activeIndex = -1;
+                for (let i = 0; i < this.currentLyrics.length; i++) {
+                    if (this.currentLyrics[i].time <= currentTime) {
+                        activeIndex = i;
+                    } else {
+                        break;
+                    }
+                }
+                
+                const content = document.getElementById('lyrics-content');
+                let html = '';
+                
+                if (this.lyricsMode === 1) { // 2行显示
+                    const currentLine = activeIndex >= 0 ? this.currentLyrics[activeIndex].text : '...';
+                    const nextLine = (activeIndex + 1 < this.currentLyrics.length) ? this.currentLyrics[activeIndex + 1].text : '';
+                    
+                    html += `<p class="lyrics-line lyrics-current mb-4">${currentLine}</p>`;
+                    html += `<p class="lyrics-line lyrics-other">${nextLine}</p>`;
+                    
+                } else if (this.lyricsMode === 2) { // 4行显示
+                    const start = activeIndex - 1;
+                    
+                    for (let i = 0; i < 4; i++) {
+                        const idx = start + i;
+                        if (idx >= 0 && idx < this.currentLyrics.length) {
+                            const line = this.currentLyrics[idx];
+                            const isCurrent = (idx === activeIndex);
+                            const className = isCurrent ? 'lyrics-current' : 'lyrics-other';
+                            const mb = isCurrent ? 'mb-2' : 'mb-1';
+                            html += `<p class="lyrics-line ${className} ${mb}">${line.text}</p>`;
+                        } else {
+                            html += `<p class="lyrics-line lyrics-other">&nbsp;</p>`;
+                        }
+                    }
+                }
+                
+                content.innerHTML = html;
+            }
+        }
+        
+        const player = new MusicPlayer();
+    </script>
+</body>
+</html>

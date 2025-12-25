@@ -1,0 +1,28 @@
+{
+    "data-share":
+    {
+        "shares":
+        [
+            {
+                "name": "fnmusic",
+                "permission":
+                {
+                    "rw":
+                    [
+                        "fnmusic"
+                    ]
+                }
+            },
+            {
+                "name": "fnmusic/data",
+                "permission":
+                {
+                    "rw":
+                    [
+                        "fnmusic"
+                    ]
+                }
+            }
+        ]
+    }
+}

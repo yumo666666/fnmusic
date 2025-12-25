@@ -1,0 +1,20 @@
+[
+  {
+    "stepTitle": "首次安装设置",
+    "items": [
+      {
+        "type": "text",
+        "field": "wizard_music_directory",
+        "label": "音乐目录",
+        "placeholder": "/vol1/1000/音乐",
+        "default": "/vol1/1000/音乐",
+        "rules": [
+          {
+            "required": true,
+            "message": "音乐目录不能为空"
+          }
+        ]
+      }
+    ]
+  }
+]

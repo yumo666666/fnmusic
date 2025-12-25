@@ -1,0 +1,234 @@
+#!/bin/bash
+
+LOG_FILE="${TRIM_PKGVAR}/info.log"
+PID_FILE="${TRIM_PKGVAR}/app.pid"
+
+log_msg() {
+    echo "$(date '+%Y-%m-%d %H:%M:%S') - $1" >> ${LOG_FILE}
+}
+
+# write the command to start your program here 
+export PATH=/var/apps/python312/target/bin:$PATH
+
+VENV_DIR="${TRIM_PKGVAR}/.venv"
+APP_DIR="${TRIM_APPDEST}"
+SERVER_DIR="${APP_DIR}/server"
+UI_DIR="${APP_DIR}/ui"
+FAVORITES_FILE="${TRIM_PKGVAR}/favorites.json"
+
+DEPS_MARKER="${VENV_DIR}/.deps_installed"
+
+ensure_venv() {
+    if [ ! -x "${VENV_DIR}/bin/python" ]; then
+        python3 -m venv "${VENV_DIR}" >> ${LOG_FILE} 2>&1 || return 1
+    fi
+    return 0
+}
+
+ensure_deps() {
+    if [ -f "${DEPS_MARKER}" ]; then
+        "${VENV_DIR}/bin/python" -c "import flask, flask_cors, mutagen" >> ${LOG_FILE} 2>&1 && return 0
+        rm -f "${DEPS_MARKER}" >> ${LOG_FILE} 2>&1 || true
+    fi
+
+    "${VENV_DIR}/bin/pip" install -r "${SERVER_DIR}/requirements.txt" >> ${LOG_FILE} 2>&1 || return 1
+    "${VENV_DIR}/bin/python" -c "import flask, flask_cors, mutagen" >> ${LOG_FILE} 2>&1 || return 1
+    touch "${DEPS_MARKER}" >> ${LOG_FILE} 2>&1 || true
+    return 0
+}
+
+wait_for_port() {
+    local port=$1
+    local timeout=${2:-15}
+    "${VENV_DIR}/bin/python" -c "import socket, time, sys
+port=int(sys.argv[1]); timeout=float(sys.argv[2])
+start=time.time()
+while time.time()-start < timeout:
+    s=socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+    s.settimeout(0.5)
+    try:
+        s.connect(('127.0.0.1', port))
+        s.close()
+        sys.exit(0)
+    except Exception:
+        try: s.close()
+        except Exception: pass
+        time.sleep(0.5)
+sys.exit(1)
+" "${port}" "${timeout}" >> ${LOG_FILE} 2>&1
+    return $?
+}
+
+DATA_DIR="${TRIM_DATA_SHARE_PATHS%%:*}"
+
+CONFIG_FILE="${TRIM_PKGVAR}/config.json"
+DEFAULT_MUSIC_DIR="/vol1/1000/音乐"
+DEFAULT_PORT="8090"
+
+get_music_dir() {
+    DEFAULT_MUSIC_DIR="${DEFAULT_MUSIC_DIR}" \
+    CONFIG_FILE="${CONFIG_FILE}" \
+    "${VENV_DIR}/bin/python" -c "import json, os
+default_dir=(os.environ.get('DEFAULT_MUSIC_DIR') or '').strip()
+config_file=(os.environ.get('CONFIG_FILE') or '').strip()
+value=default_dir
+if config_file:
+    try:
+        with open(config_file,'r',encoding='utf-8') as f:
+            cfg=json.load(f) if f.readable() else {}
+        if isinstance(cfg, dict):
+            v=(cfg.get('music_directory') or '').strip()
+            if v:
+                value=v
+    except Exception:
+        pass
+print(value, end='')
+" 2>> ${LOG_FILE}
+}
+
+get_port() {
+    printf "%s" "${DEFAULT_PORT}"
+}
+
+check_port_available() {
+    local port=$1
+    "${VENV_DIR}/bin/python" -c "import socket, sys
+port=int(sys.argv[1])
+s=socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+try:
+    s.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
+    s.bind(('0.0.0.0', port))
+except OSError:
+    sys.exit(1)
+finally:
+    try:
+        s.close()
+    except Exception:
+        pass
+" "${port}" >> ${LOG_FILE} 2>&1
+    return $?
+}
+
+start_process() {
+    if status; then
+        return 0
+    fi
+
+    log_msg "Starting process ..."
+
+    if ! ensure_venv; then
+        log_msg "Failed to create python venv"
+        return 1
+    fi
+
+    if ! ensure_deps; then
+        log_msg "Failed to install python dependencies"
+        return 1
+    fi
+
+    MUSIC_DIR_VALUE=$(get_music_dir)
+    PORT_VALUE=$(get_port)
+
+    if ! check_port_available "${PORT_VALUE}"; then
+        log_msg "端口 ${PORT_VALUE} 已被占用，请更换端口后重试"
+        return 1
+    fi
+
+    CMD="MUSIC_DIR='${MUSIC_DIR_VALUE}' HOST='0.0.0.0' PORT='${PORT_VALUE}' UI_DIR='${UI_DIR}' FAVORITES_FILE='${FAVORITES_FILE}' CONFIG_FILE='${CONFIG_FILE}' '${VENV_DIR}/bin/python' '${SERVER_DIR}/app.py'"
+
+    # run cmd to start process
+    bash -c "${CMD}" >> ${LOG_FILE} 2>&1 &
+    # write pid to pidfile
+    printf "%s" "$!" > ${PID_FILE}
+
+    if ! wait_for_port "${PORT_VALUE}" 15; then
+        log_msg "端口 ${PORT_VALUE} 启动超时（等待 15 秒仍未就绪）"
+        return 1
+    fi
+
+    # log_msg "CMD = ${CMD}"
+    # log_msg "pid = $!"
+    return 0
+}
+
+stop_process() {
+    log_msg "Stopping process ..."
+
+    if [ -r "${PID_FILE}" ]; then
+        pid=$(head -n 1 "${PID_FILE}" | tr -d '[:space:]')
+        
+        log_msg "pid=${pid}"
+        if ! check_process "${pid}"; then
+            # process not exist, delete pidfile
+            rm -f "${PID_FILE}"
+            log_msg "remove pid file 1"
+            return
+        fi
+
+        log_msg "send TERM signal to PID:${pid}..."
+        kill -TERM ${pid} >> ${LOG_FILE} 2>&1
+
+        local count=0
+        while check_process "${pid}" && [ $count -lt 10 ]; do
+            sleep 1
+            count=$((count + 1))
+            log_msg "waiting process terminal... (${count}s/10s)"
+        done
+
+        if check_process "${pid}"; then
+            log_msg "send KILL signal to PID:${pid}..."
+            kill -KILL "${pid}"
+            sleep 1
+            rm -f "${PID_FILE}"
+        else
+            log_msg "process killed... "
+        fi
+    fi
+
+    return 0
+}
+
+check_process() {
+    local pid=$1
+    if kill -0 "${pid}" 2>/dev/null; then
+        return 0  # process exist
+    else
+        return 1  # process not exist
+    fi
+}
+
+status() {
+    if [ -f "${PID_FILE}" ]; then
+        pid=$(head -n 1 "${PID_FILE}" | tr -d '[:space:]')
+        if check_process "${pid}"; then
+            return 0
+        else
+            # Process is not running but pidfile exists - clean it up
+            rm -f "${PID_FILE}"
+        fi    
+    fi
+
+    return 1
+}
+
+case $1 in
+start)
+    # run start command. exit 0 if success, exit 1 if failed
+    start_process
+    ;;
+stop)
+    # run stop command. exit 0 if success, exit 1 if failed
+    stop_process
+    ;;
+status)
+    # check application status command. exit 0 if running, exit 3 if not running
+    if status; then 
+        exit 0
+    else 
+        exit 3
+    fi
+    ;;
+*)
+    exit 1
+    ;;
+esac

@@ -1,0 +1,61 @@
+#!/bin/bash
+
+### This script is called after the user installs the application.
+
+export PATH=/var/apps/python312/target/bin:$PATH
+
+VENV_DIR="${TRIM_PKGVAR}/.venv"
+APP_DIR="${TRIM_APPDEST}"
+SERVER_DIR="${APP_DIR}/server"
+CONFIG_FILE="${TRIM_PKGVAR}/config.json"
+MUSIC_DIR="${wizard_music_directory:-/vol1/1000/音乐}"
+PORT_VALUE="8090"
+
+if [ ! -x "${VENV_DIR}/bin/python" ]; then
+    python3 -m venv "${VENV_DIR}"
+fi
+
+"${VENV_DIR}/bin/pip" install -r "${SERVER_DIR}/requirements.txt"
+
+python3 -c "import json, os
+p=os.environ.get('CONFIG_FILE')
+music=os.environ.get('MUSIC_DIR','').strip()
+port_raw=os.environ.get('PORT_VALUE','').strip()
+try:
+    port=int(port_raw)
+except Exception:
+    port=8090
+data={'music_directory': music}
+data['port']=port
+os.makedirs(os.path.dirname(p), exist_ok=True)
+with open(p,'w',encoding='utf-8') as f:
+    json.dump(data,f,ensure_ascii=False,indent=2)
+" \
+  CONFIG_FILE="${CONFIG_FILE}" \
+  MUSIC_DIR="${MUSIC_DIR}" \
+  PORT_VALUE="${PORT_VALUE}"
+
+python3 -c "import json, os
+ui_config=os.path.join(os.environ.get('APP_DIR',''), 'ui', 'config')
+port_raw=(os.environ.get('PORT_VALUE') or '').strip()
+try:
+    port=int(port_raw)
+except Exception:
+    port=8090
+if os.path.exists(ui_config):
+    try:
+        with open(ui_config,'r',encoding='utf-8') as f:
+            data=json.load(f)
+        if isinstance(data, dict) and '.url' in data and isinstance(data.get('.url'), dict):
+            for k, v in data['.url'].items():
+                if isinstance(v, dict):
+                    v['port']=str(port)
+            with open(ui_config,'w',encoding='utf-8') as f:
+                json.dump(data, f, ensure_ascii=False, indent=2)
+    except Exception:
+        pass
+" \
+  APP_DIR="${APP_DIR}" \
+  PORT_VALUE="${PORT_VALUE}"
+
+exit 0

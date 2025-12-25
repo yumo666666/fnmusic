@@ -1,0 +1,171 @@
+{
+  "project": "fnmusic",
+  "goal": "把本地 Flask 音乐播放器适配为飞牛桌面应用入口",
+  "tasks": [
+    {
+      "id": "T1",
+      "title": "分析模板结构与启动入口",
+      "done": true
+    },
+    {
+      "id": "T2",
+      "title": "适配 Flask 服务与前端 UI 到打包目录",
+      "done": true
+    },
+    {
+      "id": "T3",
+      "title": "补齐 manifest 与桌面入口配置",
+      "done": true
+    },
+    {
+      "id": "T4",
+      "title": "本地验证启动与 API",
+      "done": true
+    },
+    {
+      "id": "T5",
+      "title": "桌面入口改为 iframe 窗口内打开",
+      "done": true
+    },
+    {
+      "id": "T6",
+      "title": "修复 iframe 拒绝连接导致窗口自动关闭",
+      "done": true
+    },
+    {
+      "id": "T7",
+      "title": "后端监听地址使用 0.0.0.0",
+      "done": true
+    },
+    {
+      "id": "T8",
+      "title": "安装向导引导填写音乐目录并默认 /vol1/1000/音乐",
+      "done": true
+    },
+    {
+      "id": "T9",
+      "title": "播放器页面全屏适配占满应用窗口",
+      "done": true
+    },
+    {
+      "id": "T10",
+      "title": "给出飞牛桌面窗口尺寸调整说明",
+      "done": true
+    },
+    {
+      "id": "T11",
+      "title": "修复安装向导 wizard/install 字段以通过 fnpack 校验",
+      "done": true
+    },
+    {
+      "id": "T12",
+      "title": "修复已设置音乐目录但未识别的问题并提供后端状态接口",
+      "done": true
+    },
+    {
+      "id": "T13",
+      "title": "支持在应用设置中修改音乐目录（无需重装）",
+      "done": true
+    },
+    {
+      "id": "T14",
+      "title": "安装向导支持端口配置并检测端口占用",
+      "done": true
+    },
+    {
+      "id": "T15",
+      "title": "端口占用时自动选择可用端口避免安装失败",
+      "done": true
+    },
+    {
+      "id": "T16",
+      "title": "端口策略默认避开 8080 与 443",
+      "done": true
+    },
+    {
+      "id": "T17",
+      "title": "记录播放状态并在下次启动恢复",
+      "done": true
+    },
+    {
+      "id": "T18",
+      "title": "替换桌面入口图标为自定义音乐图标",
+      "done": true
+    },
+    {
+      "id": "T19",
+      "title": "更新应用开发者与发布人字段为 yumo",
+      "done": true
+    },
+    {
+      "id": "T20",
+      "title": "应用介绍补充仓库链接并增加图片展示位",
+      "done": true
+    },
+    {
+      "id": "T21",
+      "title": "将应用中心展示图片改为 manifest desc 内嵌",
+      "done": true
+    },
+    {
+      "id": "T22",
+      "title": "生成音乐图标并同步替换根目录与 ui/images",
+      "done": true
+    },
+    {
+      "id": "T23",
+      "title": "播放列表可视高度限制为 3 行",
+      "done": true
+    },
+    {
+      "id": "T24",
+      "title": "调整页面布局避免底部区域被遮挡",
+      "done": true
+    },
+    {
+      "id": "T25",
+      "title": "应用启动时尝试请求全屏显示",
+      "done": true
+    },
+    {
+      "id": "T26",
+      "title": "移除安装脚本中的图标自动生成并改为固定图标文件",
+      "done": true
+    },
+    {
+      "id": "T27",
+      "title": "修复安装端口读取并在端口占用时安装失败退出",
+      "done": true
+    },
+    {
+      "id": "T28",
+      "title": "修复启动脚本从 config.json 读取端口逻辑",
+      "done": true
+    },
+    {
+      "id": "T29",
+      "title": "验证端口配置在启动脚本中生效",
+      "done": true
+    },
+    {
+      "id": "T30",
+      "title": "移除安装向导端口输入并固定端口为 8090",
+      "done": true
+    },
+    {
+      "id": "T31",
+      "title": "安装与启动脚本统一固定端口 8090",
+      "done": true
+    },
+    {
+      "id": "T32",
+      "title": "编写当前功能说明的 GitHub 文档",
+      "done": true
+    },
+    {
+      "id": "T33",
+      "title": "将文档任务同步到目标任务文件",
+      "done": true
+    }
+  ]
+}
