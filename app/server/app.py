@@ -1,9 +1,13 @@
 import os
 import json
+import hashlib
+from io import BytesIO
 import mutagen
 from mutagen.easyid3 import EasyID3
 from flask import Flask, jsonify, send_file, request, abort
 from flask_cors import CORS
+from library import (AUDIO_EXTENSIONS, contains, directory_readable, embedded_cover,
+                     external_cover, folder_images, normalize_directories, scan)
 
 
 def load_config(config_path: str):
@@ -127,18 +131,25 @@ def normalize_music_dir(path: str):
     return value
 
 
-def get_music_dir():
-    raw = os.environ.get('MUSIC_DIR')
-    if raw is None or str(raw).strip() == '':
-        cfg = load_config(config_path)
-        raw = cfg.get('music_directory', '') if isinstance(cfg, dict) else ''
-    raw = normalize_music_dir(raw)
-    if not raw:
-        return ''
+def get_music_dirs():
+    cfg = load_config(config_path)
+    cfg = cfg if isinstance(cfg, dict) else {}
+    raw = cfg.get('music_directories')
+    if not isinstance(raw, list):
+        raw = [cfg.get('music_directory') or os.environ.get('MUSIC_DIR') or '']
     try:
-        return os.path.abspath(raw)
-    except Exception:
-        return ''
+        return normalize_directories([path for path in raw if path])
+    except ValueError:
+        return []
+
+
+def get_music_dir():
+    directories = get_music_dirs()
+    return directories[0] if directories else ''
+
+
+def is_library_path(path):
+    return bool(path) and contains(path, get_music_dirs())
 
 
 server_dir = os.path.dirname(os.path.abspath(__file__))
@@ -200,166 +211,118 @@ def index():
 
 @app.route('/api/files')
 def list_files():
-    """扫描音乐目录并返回歌曲列表（含封面/歌词/元数据）。"""
-    base_dir = get_music_dir()
-    if not base_dir or not os.path.exists(base_dir):
-        return jsonify([])
+    return jsonify(scan(get_music_dirs(), get_metadata))
 
-    songs = []
-    supported_audio = ['.mp3', '.flac', '.wav', '.aac', '.m4a', '.ogg', '.opus', '.ape', '.wma']
-    supported_img = ['.jpg', '.png', '.jpeg']
 
-    dir_files = {}
-
-    for root, dirs, filenames in os.walk(base_dir):
-        if root not in dir_files:
-            dir_files[root] = {'audio': [], 'img': [], 'lrc': []}
-
-        for filename in filenames:
-            ext = os.path.splitext(filename)[1].lower()
-            if ext in supported_audio:
-                dir_files[root]['audio'].append(filename)
-            elif ext in supported_img:
-                dir_files[root]['img'].append(filename)
-            elif ext == '.lrc':
-                dir_files[root]['lrc'].append(filename)
-
-    for root, data in dir_files.items():
-        data['audio'].sort()
-        data['img'].sort()
-
-        default_cover = None
-        for img in data['img']:
-            if 'cover' in img.lower() or 'folder' in img.lower() or 'front' in img.lower():
-                default_cover = os.path.join(root, img)
-                break
-        if not default_cover and data['img']:
-            default_cover = os.path.join(root, data['img'][0])
-
-        for audio_file in data['audio']:
-            base_name = os.path.splitext(audio_file)[0]
-            audio_path = os.path.join(root, audio_file)
-
-            lrc_path = os.path.join(root, base_name + '.lrc')
-            if not os.path.exists(lrc_path):
-                found_lrc = False
-                for lrc in data['lrc']:
-                    if os.path.splitext(lrc)[0].lower() == base_name.lower():
-                        lrc_path = os.path.join(root, lrc)
-                        found_lrc = True
-                        break
-                if not found_lrc:
-                    lrc_path = None
-
-            cover_path = default_cover
-            for img in data['img']:
-                if os.path.splitext(img)[0].lower() == base_name.lower():
-                    cover_path = os.path.join(root, img)
-                    break
-
-            artist, album = get_metadata(audio_path)
-
-            songs.append({
-                'name': audio_file,
-                'path': audio_path,
-                'type': os.path.splitext(audio_file)[1].lower(),
-                'parent': root,
-                'cover_path': cover_path,
-                'lrc_path': lrc_path,
-                'artist': artist,
-                'album': album
-            })
-
-    return jsonify(songs)
+@app.route('/api/cover')
+def cover_file():
+    path = request.args.get('path')
+    directories = get_music_dirs()
+    if not path or not contains(path, directories):
+        abort(403)
+    if not os.path.isfile(path) or os.path.splitext(path)[1].lower() not in AUDIO_EXTENSIONS:
+        abort(404)
+    cover = embedded_cover(path)
+    if cover:
+        data, mime = cover
+        response = send_file(BytesIO(data), mimetype=mime, etag=hashlib.sha256(data).hexdigest())
+    else:
+        external = external_cover(path, folder_images(os.path.dirname(path), directories))
+        response = send_file(external or os.path.join(ui_dir, 'images', 'default-cover.svg'))
+    response.cache_control.no_cache = True
+    return response
 
 
 @app.route('/api/status')
 def status():
-    base_dir = get_music_dir()
-    cfg = load_config(config_path)
-    cfg_music = cfg.get('music_directory') if isinstance(cfg, dict) else None
-    supported_audio = ['.mp3', '.flac', '.wav', '.aac', '.m4a', '.ogg', '.opus', '.ape', '.wma']
-
-    counts = None
-    if base_dir and os.path.exists(base_dir):
-        ext_count = {ext: 0 for ext in supported_audio}
-        total = 0
-        for root, dirs, filenames in os.walk(base_dir):
-            for filename in filenames:
-                total += 1
-                ext = os.path.splitext(filename)[1].lower()
-                if ext in ext_count:
-                    ext_count[ext] += 1
-            if total >= 20000:
+    directories = get_music_dirs()
+    seen = set()
+    counts = {'total_files_scanned': 0, 'audio_by_ext': {ext: 0 for ext in AUDIO_EXTENSIONS}}
+    for directory in directories:
+        for folder, _, files in os.walk(directory):
+            for name in files:
+                path = os.path.join(folder, name)
+                real = os.path.realpath(path)
+                if real in seen or not contains(path, directories):
+                    continue
+                seen.add(real)
+                counts['total_files_scanned'] += 1
+                extension = os.path.splitext(name)[1].lower()
+                if extension in counts['audio_by_ext']:
+                    counts['audio_by_ext'][extension] += 1
+                if counts['total_files_scanned'] >= 20000:
+                    break
+            if counts['total_files_scanned'] >= 20000:
                 break
-        counts = {
-            'total_files_scanned': total,
-            'audio_by_ext': ext_count
-        }
-
+        if counts['total_files_scanned'] >= 20000:
+            break
+    cfg = load_config(config_path)
     return jsonify({
         'config_path': config_path,
         'config_exists': bool(config_path) and os.path.exists(config_path),
-        'config_music_directory': cfg_music,
+        'config_music_directory': cfg.get('music_directory') if isinstance(cfg, dict) else None,
         'env_music_dir': os.environ.get('MUSIC_DIR'),
-        'music_dir_effective': base_dir,
-        'music_dir_exists': bool(base_dir) and os.path.exists(base_dir),
-        'supported_audio': supported_audio,
+        'music_dir_effective': get_music_dir(),
+        'music_dirs_effective': directories,
+        'music_dir_exists': bool(directories) and os.path.isdir(directories[0]),
+        'directories': [{'path': path, 'exists': os.path.isdir(path),
+                         'readable': directory_readable(path)} for path in directories],
+        'supported_audio': list(AUDIO_EXTENSIONS),
         'counts': counts
     })
 
 
 @app.route('/api/config', methods=['GET'])
 def get_config_api():
-    """获取应用配置（用于前端设置页展示）。"""
-    cfg = load_config(config_path)
-    if not isinstance(cfg, dict):
-        cfg = {}
+    directories = get_music_dirs()
     return jsonify({
         'config_path': config_path,
-        'music_directory': cfg.get('music_directory', ''),
+        'music_directory': get_music_dir(),
+        'music_directories': directories,
         'music_dir_effective': get_music_dir(),
+        'music_dirs_effective': directories
     })
+
+
+def update_directories(raw):
+    if not isinstance(raw, list) or not raw:
+        return jsonify({'error': '请至少保留一个音乐扫描目录'}), 400
+    try:
+        directories = normalize_directories(raw)
+    except ValueError as error:
+        return jsonify({'error': str(error)}), 400
+    for path in directories:
+        if not os.path.isdir(path):
+            return jsonify({'error': f'目录不存在：{path}'}), 400
+        if not directory_readable(path):
+            return jsonify({'error': f'目录无法读取：{path}。请在飞牛文件权限中授予 fnmusic 读取权限。'}), 400
+    if not config_path:
+        return jsonify({'error': '未设置配置文件路径'}), 500
+    try:
+        save_config(config_path, {'music_directories': directories, 'music_directory': directories[0]})
+    except OSError:
+        return jsonify({'error': '配置保存失败，请检查应用数据目录的写入权限'}), 500
+    return jsonify({
+        'ok': True, 'music_directory': directories[0], 'music_directories': directories,
+        'music_dir_effective': directories[0], 'music_dirs_effective': directories
+    })
+
+
+@app.route('/api/config/music_directories', methods=['POST'])
+def set_music_directories_api():
+    data = request.get_json(silent=True)
+    if not isinstance(data, dict):
+        return jsonify({'error': '请提供音乐目录列表'}), 400
+    return update_directories(data.get('music_directories'))
 
 
 @app.route('/api/config/music_directory', methods=['POST'])
 def set_music_directory_api():
-    """更新音乐目录。
-
-    - 写入 config.json 的 music_directory。
-    - 同步更新进程内环境变量 MUSIC_DIR，使修改立刻生效。
-    """
-    data = request.json or {}
-    raw = data.get('music_directory')
-    if raw is None:
-        raw = data.get('musicDirectory')
-
-    value = normalize_music_dir(raw)
-    if not value:
-        return jsonify({'error': 'music_directory is required'}), 400
-
-    try:
-        abs_dir = os.path.abspath(value)
-    except Exception:
-        return jsonify({'error': 'invalid path'}), 400
-
-    if not os.path.isdir(abs_dir):
-        return jsonify({'error': 'directory not found'}), 400
-
-    if not config_path:
-        return jsonify({'error': 'config path not set'}), 500
-
-    try:
-        save_config(config_path, {'music_directory': value})
-        os.environ['MUSIC_DIR'] = value
-    except Exception:
-        return jsonify({'error': 'failed to save config'}), 500
-
-    return jsonify({
-        'ok': True,
-        'music_directory': value,
-        'music_dir_effective': get_music_dir(),
-    })
+    # Keep the original single-directory API for existing clients.
+    data = request.get_json(silent=True)
+    if not isinstance(data, dict):
+        return jsonify({'error': '请提供音乐目录'}), 400
+    return update_directories([data.get('music_directory', data.get('musicDirectory'))])
 
 
 @app.route('/api/play')
@@ -372,7 +335,7 @@ def play_file():
     base_dir = get_music_dir()
     if not path or not os.path.exists(path):
         return jsonify({'error': 'File not found'}), 404
-    if not is_safe_child_path(path, base_dir):
+    if not is_library_path(path):
         return jsonify({'error': 'Forbidden'}), 403
     return send_file(path)
 
@@ -389,7 +352,7 @@ def manage_favorites():
     base_dir = get_music_dir()
     if not path:
         return jsonify({'error': 'No path provided'}), 400
-    if not is_safe_child_path(path, base_dir):
+    if not is_library_path(path):
         return jsonify({'error': 'Forbidden'}), 403
 
     if request.method == 'POST':
@@ -414,12 +377,14 @@ def get_lyrics():
     base_dir = get_music_dir()
     if not song_path:
         return jsonify({'error': 'No song path'}), 400
-    if not is_safe_child_path(song_path, base_dir):
+    if not is_library_path(song_path):
         return jsonify({'error': 'Forbidden'}), 403
 
     base, _ = os.path.splitext(song_path)
     lrc_path = base + '.lrc'
 
+    if not is_library_path(lrc_path):
+        return jsonify({'error': 'Forbidden'}), 403
     if os.path.exists(lrc_path):
         try:
             with open(lrc_path, 'r', encoding='utf-8') as f:

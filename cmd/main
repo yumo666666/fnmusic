@@ -31,7 +31,7 @@ ensure_deps() {
         rm -f "${DEPS_MARKER}" >> ${LOG_FILE} 2>&1 || true
     fi
 
-    "${VENV_DIR}/bin/pip" install -r "${SERVER_DIR}/requirements.txt" >> ${LOG_FILE} 2>&1 || return 1
+    "${VENV_DIR}/bin/pip" install --no-index --find-links "${SERVER_DIR}/wheels" -r "${SERVER_DIR}/requirements.txt" >> ${LOG_FILE} 2>&1 || return 1
     "${VENV_DIR}/bin/python" -c "import flask, flask_cors, mutagen" >> ${LOG_FILE} 2>&1 || return 1
     touch "${DEPS_MARKER}" >> ${LOG_FILE} 2>&1 || true
     return 0
@@ -62,7 +62,7 @@ sys.exit(1)
 DATA_DIR="${TRIM_DATA_SHARE_PATHS%%:*}"
 
 CONFIG_FILE="${TRIM_PKGVAR}/config.json"
-DEFAULT_MUSIC_DIR="/vol1/1000/音乐"
+DEFAULT_MUSIC_DIR="/vol2/1000/youtube/"
 DEFAULT_PORT="8090"
 
 get_music_dir() {
@@ -134,10 +134,9 @@ start_process() {
         return 1
     fi
 
-    CMD="MUSIC_DIR='${MUSIC_DIR_VALUE}' HOST='0.0.0.0' PORT='${PORT_VALUE}' UI_DIR='${UI_DIR}' FAVORITES_FILE='${FAVORITES_FILE}' CONFIG_FILE='${CONFIG_FILE}' '${VENV_DIR}/bin/python' '${SERVER_DIR}/app.py'"
-
-    # run cmd to start process
-    bash -c "${CMD}" >> ${LOG_FILE} 2>&1 &
+    MUSIC_DIR="${MUSIC_DIR_VALUE}" HOST="0.0.0.0" PORT="${PORT_VALUE}" \
+      UI_DIR="${UI_DIR}" FAVORITES_FILE="${FAVORITES_FILE}" CONFIG_FILE="${CONFIG_FILE}" \
+      "${VENV_DIR}/bin/python" "${SERVER_DIR}/app.py" >> "${LOG_FILE}" 2>&1 &
     # write pid to pidfile
     printf "%s" "$!" > ${PID_FILE}
 

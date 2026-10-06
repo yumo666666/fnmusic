@@ -6,8 +6,8 @@
         "type": "text",
         "field": "wizard_music_directory",
         "label": "音乐目录",
-        "placeholder": "/vol1/1000/音乐",
-        "default": "/vol1/1000/音乐",
+        "placeholder": "/vol2/1000/youtube/",
+        "default": "/vol2/1000/youtube/",
         "rules": [
           {
             "required": true,

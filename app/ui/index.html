@@ -76,22 +76,58 @@
             -ms-overflow-style: none;
             scrollbar-width: none;
         }
+        .speed-controls {
+            display: flex; align-items: center; gap: 10px; margin: 0 0 16px;
+            color: #fff; font-size: 14px;
+        }
+        #playback-speed {
+            background: #30234c; color: #fff; border: 1px solid rgba(255,255,255,.5);
+            border-radius: 8px; padding: 7px 10px; font: inherit; min-width: 85px;
+        }
+        *, *::before, *::after { box-sizing: border-box; }
+        .music-player { height: 100vh; height: 100dvh; width: 100%; }
+        .player-info { min-width: 0; }
+        #song-title, #current-song-name { overflow-wrap: anywhere; }
+        @media (max-width: 640px) {
+            .music-player { padding: 14px; }
+            .player-header { flex-direction: column; align-items: stretch; gap: 12px; }
+            .player-header > * { margin-left: 0 !important; }
+            .player-header > .relative { align-self: center; }
+            #album-cover { width: 96px; height: 96px; }
+            .player-header > .relative > .absolute { display: none; }
+            #song-title { font-size: 20px; }
+            #current-song-name { margin-bottom: 12px; }
+            .player-footer { flex-wrap: wrap; gap: 12px; }
+            .player-tools { flex-wrap: wrap; gap: 16px; }
+            .player-tools > * { margin-left: 0 !important; }
+            #playlist { margin-top: 16px; padding: 12px; }
+            #playlist-items { max-height: none; }
+            #lyrics-display { padding: 12px; }
+        }
+        .scan-directory-list { max-height: 180px; overflow-y: auto; margin-bottom: 14px; }
+        .scan-directory-row { display: flex; align-items: center; gap: 10px; margin-bottom: 8px; color: white; }
+        .scan-directory-row span { flex: 1; min-width: 0; overflow-wrap: anywhere; font-size: 13px; }
+        .scan-directory-row button { color: #fca5a5; white-space: nowrap; }
+        .scan-directory-add { display: flex; align-items: center; gap: 8px; margin-top: 6px; }
+        .scan-directory-add input { min-width: 0; flex: 1; }
+        .scan-directory-add button { flex-shrink: 0; }
+        #settings-modal > div { max-height: 90vh; max-height: 90dvh; overflow-y: auto; }
     </style>
 </head>
 <body>
     <div class="music-player">
         <!-- 主播放界面 -->
-        <div class="flex items-center space-x-6">
+        <div class="player-header flex items-center space-x-6">
             <!-- 专辑封面 -->
             <div class="relative">
-                <img id="album-cover" src="https://picsum.photos/id/237/200/200" alt="Album Cover" class="w-48 h-48 rounded-lg shadow-lg object-cover" onerror="this.src='https://via.placeholder.com/200/000000/FFFFFF/?text=Music'">
+                <img id="album-cover" src="/images/default-cover.svg" alt="歌曲封面" class="w-48 h-48 rounded-lg shadow-lg object-cover" onerror="this.onerror=null;this.src='/images/default-cover.svg'">
                 <div class="absolute bottom-0 left-0 right-0 bg-black bg-opacity-50 text-white p-2 rounded-b-lg">
                     <div id="song-name" class="text-sm font-medium">未知歌曲</div>
                     <div id="song-artist" class="text-xs">未知艺术家</div>
                 </div>
             </div>
             <!-- 歌曲信息与控制 -->
-            <div class="flex-1">
+            <div class="player-info flex-1">
                 <div class="flex items-center justify-between mb-2">
                     <h2 id="song-title" class="text-2xl font-bold text-white">欢迎使用</h2>
                     <button id="heart-mode-btn" class="text-gray-300 hover:text-pink-400 transition-colors" title="心动模式">
@@ -117,13 +153,28 @@
                     </div>
                     <!-- 右侧：音量控制 -->
                     <div class="flex items-center space-x-2 flex-1 ml-6 max-w-[50%]">
-                        <button id="mute-btn" class="text-white text-xl hover:text-blue-300">
-                            <i class="fas fa-volume-up"></i>
+                        <button id="mute-btn" type="button" class="text-white text-xl hover:text-blue-300" title="静音" aria-label="静音" aria-pressed="false" style="min-width: 28px; min-height: 32px">
+                            <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M11 5 6 9H3v6h3l5 4z"/><path d="M15 8a6 6 0 0 1 0 8M18 5a10 10 0 0 1 0 14"/></svg>
                         </button>
                         <div id="volume-container" class="volume-bar-container flex-1 bg-gray-600 bg-opacity-50 rounded-full h-2">
                             <div id="volume-bar" class="volume-bar h-2 rounded-full" style="width: 70%"></div>
                         </div>
                     </div>
+                </div>
+
+                <div class="speed-controls">
+                    <label for="playback-speed">播放速度</label>
+                    <select id="playback-speed" aria-label="播放速度">
+                        <option value="0.5">0.5×</option>
+                        <option value="0.75">0.75×</option>
+                        <option value="1">1×</option>
+                        <option value="1.25">1.25×</option>
+                        <option value="1.5">1.5×</option>
+                        <option value="1.75">1.75×</option>
+                        <option value="2">2×</option>
+                        <option value="2.5">2.5×</option>
+                        <option value="3">3×</option>
+                    </select>
                 </div>
 
                 <!-- 进度条 -->
@@ -134,14 +185,14 @@
                 </div>
 
                 <!-- 底部控制按钮 -->
-                <div class="flex items-center justify-between">
+                <div class="player-footer flex items-center justify-between">
                     <!-- 左侧：时间 -->
                     <div class="text-white text-sm font-medium">
                         <span id="current-time">0:00</span> / <span id="duration">0:00</span>
                     </div>
 
                     <!-- 右侧：功能按钮 -->
-                    <div class="flex items-center space-x-6">
+                    <div class="player-tools flex items-center space-x-6">
                         <button id="playlist-toggle-btn" class="text-white text-xl hover:text-blue-300" title="显示/隐藏播放列表">
                             <i class="fas fa-list"></i>
                         </button>
@@ -205,13 +256,19 @@
                 </button>
             </div>
 
-            <div class="mb-2 text-white text-sm font-medium">音乐目录</div>
-            <input id="settings-music-dir" type="text" placeholder="/vol1/1000/音乐" class="w-full bg-gray-700 bg-opacity-60 text-white px-3 py-2 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-400 placeholder-gray-400 text-sm">
+            <div class="mb-2 text-white text-sm font-medium">音乐扫描目录</div>
+            <div id="settings-directories" class="scan-directory-list"></div>
+            <label for="settings-music-dir" class="text-white text-sm">新增扫描目录</label>
+            <div class="scan-directory-add">
+            <input id="settings-music-dir" type="text" placeholder="/vol2/1000/音乐" class="w-full bg-gray-700 bg-opacity-60 text-white px-3 py-2 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-400 placeholder-gray-400 text-sm">
+            <button id="settings-add-dir-btn" type="button" class="px-4 py-2 rounded-lg bg-gray-700 text-white">添加</button>
+            </div>
+            <p class="text-gray-300 text-xs mt-2">保存后立即扫描，无需重启；新目录需允许 fnmusic 读取。</p>
             <div id="settings-hint" class="text-gray-300 text-xs mt-2"></div>
 
             <div class="flex items-center justify-end space-x-3 mt-5">
                 <button id="settings-refresh-btn" class="px-4 py-2 rounded-lg bg-gray-700 hover:bg-gray-600 text-white text-sm">重新扫描</button>
-                <button id="settings-save-btn" class="px-4 py-2 rounded-lg bg-blue-600 hover:bg-blue-500 text-white text-sm">保存</button>
+                <button id="settings-save-btn" class="px-4 py-2 rounded-lg bg-blue-600 hover:bg-blue-500 text-white text-sm">保存并扫描</button>
             </div>
         </div>
     </div>
@@ -220,6 +277,8 @@
         class MusicPlayer {
             constructor() {
                 this.audio = new Audio();
+                this.playbackSpeed = 1;
+                this.lastAudibleVolume = 0.7;
                 this.fullPlaylist = []; // 完整列表
                 this.displayPlaylist = []; // 当前显示的列表（全部或收藏）
                 this.currentSongIndex = -1; // 在displayPlaylist中的索引
@@ -234,12 +293,14 @@
                 this.isFavView = false;
                 this.lastPersistAt = 0;
                 this.pendingRestoreState = null;
+                this.settingsDirectories = [];
                 
                 this.init();
             }
 
             async init() {
                 this.pendingRestoreState = this.readPersistedState();
+                this.setPlaybackSpeed(this.pendingRestoreState?.playbackSpeed ?? 1, false);
                 await this.loadFavorites();
                 this.setupEventListeners();
                 this.ensureFullscreen();
@@ -254,7 +315,7 @@
                     this.setLoopMode(0);
                     this.setLyricsMode(0);
                     this.audio.volume = 0.7;
-                    document.getElementById('volume-bar').style.width = `${this.audio.volume * 100}%`;
+                    this.updateVolumeUI();
                     this.persistStateThrottled(true);
                 }
             }
@@ -281,6 +342,7 @@
                 document.getElementById('play-btn').addEventListener('click', () => this.togglePlay());
                 document.getElementById('prev-btn').addEventListener('click', () => this.playPrev());
                 document.getElementById('next-btn').addEventListener('click', () => this.playNext());
+                document.getElementById('mute-btn').addEventListener('click', () => this.toggleMute());
 
                 // 模式控制
                 document.getElementById('mode-loop-btn').addEventListener('click', () => {
@@ -311,6 +373,10 @@
                 document.getElementById('settings-btn').addEventListener('click', () => this.openSettings());
                 document.getElementById('settings-close-btn').addEventListener('click', () => this.closeSettings());
                 document.getElementById('settings-save-btn').addEventListener('click', () => this.saveSettings());
+                document.getElementById('settings-add-dir-btn').addEventListener('click', () => this.addScanDirectory());
+                document.getElementById('settings-music-dir').addEventListener('keydown', (event) => {
+                    if (event.key === 'Enter') { event.preventDefault(); this.addScanDirectory(); }
+                });
                 document.getElementById('settings-refresh-btn').addEventListener('click', () => this.refreshFiles());
                 document.getElementById('settings-modal').addEventListener('click', (e) => {
                     if (e.target && e.target.id === 'settings-modal') {
@@ -362,6 +428,10 @@
                 // 歌词开关
                 document.getElementById('lyrics-btn').addEventListener('click', () => this.toggleLyricsMode());
 
+                document.getElementById('playback-speed').addEventListener('change', (event) => {
+                    this.setPlaybackSpeed(event.target.value);
+                });
+
                 // Audio 事件
                 this.audio.addEventListener('timeupdate', () => {
                     this.updateProgress();
@@ -369,7 +439,12 @@
                     this.persistStateThrottled();
                 });
                 this.audio.addEventListener('ended', () => this.handleSongEnd());
+                this.audio.addEventListener('volumechange', () => {
+                    this.updateVolumeUI();
+                    this.persistStateThrottled(true);
+                });
                 this.audio.addEventListener('loadedmetadata', () => {
+                    this.setPlaybackSpeed(this.playbackSpeed, false);
                     document.getElementById('duration').textContent = this.formatTime(this.audio.duration);
                 });
 
@@ -390,9 +465,33 @@
                 // 音量条拖动
                 this.setupDraggable('volume-container', (percent) => {
                     this.audio.volume = percent;
-                    document.getElementById('volume-bar').style.width = `${percent * 100}%`;
+                    if (percent > 0) this.audio.muted = false;
+                    this.updateVolumeUI();
                     this.persistStateThrottled();
                 });
+            }
+
+            toggleMute() {
+                if (this.audio.muted || this.audio.volume === 0) {
+                    if (this.audio.volume === 0) this.audio.volume = this.lastAudibleVolume;
+                    this.audio.muted = false;
+                } else {
+                    this.audio.muted = true;
+                }
+                this.updateVolumeUI();
+                this.persistStateThrottled(true);
+            }
+
+            updateVolumeUI() {
+                if (this.audio.volume > 0) this.lastAudibleVolume = this.audio.volume;
+                const muted = this.audio.muted || this.audio.volume === 0;
+                const button = document.getElementById('mute-btn');
+                button.setAttribute('aria-pressed', String(muted));
+                button.setAttribute('aria-label', muted ? '取消静音' : '静音');
+                button.title = muted ? '已静音，点击恢复声音' : '点击静音';
+                button.style.color = muted ? '#f87171' : '';
+                button.innerHTML = `<svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M11 5 6 9H3v6h3l5 4z"/>${muted ? '<path d="m16 9 5 6m0-6-5 6"/>' : '<path d="M15 8a6 6 0 0 1 0 8M18 5a10 10 0 0 1 0 14"/>'}</svg>`;
+                document.getElementById('volume-bar').style.width = `${this.audio.volume * 100}%`;
             }
 
             setupDraggable(containerId, callback) {
@@ -427,6 +526,7 @@
             async loadFiles(autoSelectFirst = true) {
                 try {
                     const res = await fetch(`${this.apiUrl}/api/files`);
+                    if (!res.ok) throw new Error('曲库扫描失败');
                     const files = await res.json();
                     this.fullPlaylist = files;
                     this.switchPlaylistMode(false); // 默认显示全部
@@ -435,7 +535,9 @@
                     }
                 } catch (e) {
                     console.error('加载文件失败', e);
+                    return false;
                 }
+                return true;
             }
 
             async loadFavorites() {
@@ -463,8 +565,10 @@
                 try {
                     const res = await fetch(`${this.apiUrl}/api/config`);
                     const data = await res.json();
-                    input.value = data.music_directory || '';
-                    hint.textContent = `当前生效目录：${data.music_dir_effective || '未设置'}`;
+                    this.settingsDirectories = data.music_directories || (data.music_directory ? [data.music_directory] : []);
+                    this.renderScanDirectories();
+                    input.value = '';
+                    hint.textContent = `当前有 ${this.settingsDirectories.length} 个扫描目录`;
                     input.focus();
                 } catch (e) {
                     hint.textContent = '加载失败，请稍后重试';
@@ -483,31 +587,65 @@
             /**
              * 保存音乐目录设置，并在保存成功后重新扫描歌曲列表。
              */
-            async saveSettings() {
+            renderScanDirectories() {
+                const list = document.getElementById('settings-directories');
+                list.textContent = '';
+                this.settingsDirectories.forEach((path, index) => {
+                    const row = document.createElement('div');
+                    row.className = 'scan-directory-row';
+                    const label = document.createElement('span');
+                    label.textContent = path;
+                    const button = document.createElement('button');
+                    button.type = 'button';
+                    button.textContent = '移除';
+                    button.setAttribute('aria-label', `移除扫描目录 ${path}`);
+                    button.addEventListener('click', () => {
+                        this.settingsDirectories.splice(index, 1);
+                        this.renderScanDirectories();
+                        document.getElementById('settings-hint').textContent = '点击“保存并扫描”后生效';
+                    });
+                    row.appendChild(label);
+                    row.appendChild(button);
+                    list.appendChild(row);
+                });
+            }
+
+            addScanDirectory() {
                 const input = document.getElementById('settings-music-dir');
+                const value = input.value.trim().replace(/\\/g, '/').replace(/\/$/, '') || (input.value.trim() === '/' ? '/' : '');
+                if (!value) return;
+                if (!this.settingsDirectories.some(path => path.replace(/\/$/, '') === value)) {
+                    this.settingsDirectories.push(value);
+                }
+                input.value = '';
+                this.renderScanDirectories();
+                document.getElementById('settings-hint').textContent = '点击“保存并扫描”后生效';
+            }
+
+            async saveSettings() {
+                this.addScanDirectory();
                 const hint = document.getElementById('settings-hint');
-                const value = (input.value || '').trim();
-                if (!value) {
-                    hint.textContent = '音乐目录不能为空';
+                if (!this.settingsDirectories.length) {
+                    hint.textContent = '请至少保留一个扫描目录';
                     return;
                 }
-
-                hint.textContent = '保存中...';
+                hint.textContent = '保存并扫描中...';
                 try {
-                    const res = await fetch(`${this.apiUrl}/api/config/music_directory`, {
-                        method: 'POST',
-                        headers: {'Content-Type': 'application/json'},
-                        body: JSON.stringify({music_directory: value})
+                    const res = await fetch(`${this.apiUrl}/api/config/music_directories`, {
+                        method: 'POST', headers: {'Content-Type': 'application/json'},
+                        body: JSON.stringify({music_directories: this.settingsDirectories})
                     });
                     const data = await res.json();
                     if (!res.ok) {
-                        hint.textContent = data && data.error ? `保存失败：${data.error}` : '保存失败';
+                        hint.textContent = data.error || '保存失败';
                         return;
                     }
-                    hint.textContent = `保存成功，当前生效目录：${data.music_dir_effective || value}`;
+                    this.settingsDirectories = data.music_directories;
+                    this.renderScanDirectories();
                     await this.refreshFiles();
-                } catch (e) {
-                    hint.textContent = '保存失败，请稍后重试';
+                    hint.textContent = `已保存 ${this.settingsDirectories.length} 个目录并刷新曲库，无需重启`;
+                } catch (error) {
+                    hint.textContent = '保存或扫描失败，请稍后重试';
                 }
             }
 
@@ -515,12 +653,32 @@
              * 重新扫描音乐目录并刷新列表。
              */
             async refreshFiles() {
-                await this.loadFiles();
-                if (this.isHeartMode) {
-                    this.switchPlaylistMode(true, false, false);
+                const currentPath = this.getCurrentSongPath();
+                if (await this.loadFiles(false) === false) throw new Error('曲库扫描失败');
+                this.switchPlaylistMode(this.isHeartMode, false, false);
+                const index = this.displayPlaylist.findIndex(song => song.path === currentPath);
+                if (index >= 0) {
+                    this.currentSongIndex = index;
+                    this.updateSongCover(this.displayPlaylist[index]);
+                } else if (this.displayPlaylist.length) {
+                    await this.loadSong(0, false);
                 } else {
-                    this.switchPlaylistMode(false, false, false);
+                    this.pause();
+                    this.audio.removeAttribute('src');
+                    this.audio.load();
+                    this.currentSongIndex = -1;
+                    this.updateSongCover({});
+                    document.getElementById('song-title').textContent = '暂无歌曲';
+                    document.getElementById('artist').textContent = '请添加可读取的音乐目录';
+                    document.getElementById('current-song-name').textContent = '';
+                    document.getElementById('current-time').textContent = '0:00';
+                    document.getElementById('duration').textContent = '0:00';
+                    document.getElementById('progress-bar').style.width = '0%';
+                    document.getElementById('lyrics-content').textContent = '';
+                    this.currentLyrics = [];
                 }
+                this.renderPlaylist();
+                this.persistStateThrottled(true);
             }
 
             toggleHeartMode() {
@@ -733,6 +891,17 @@
                 });
             }
 
+            updateSongCover(song) {
+                const img = document.getElementById('album-cover');
+                img.onerror = () => {
+                    img.onerror = null;
+                    img.src = '/images/default-cover.svg';
+            };
+            img.src = song.cover_url ? `${this.apiUrl}${song.cover_url}` :
+                song.cover_path ? `${this.apiUrl}/api/play?path=${encodeURIComponent(song.cover_path)}` :
+                '/images/default-cover.svg';
+            }
+
             async loadSong(index, autoPlay = true) {
                 if (index < 0 || index >= this.displayPlaylist.length) return;
                 
@@ -757,18 +926,13 @@
                 document.getElementById('song-name').textContent = name;
                 document.getElementById('song-artist').textContent = song.artist || '未知艺术家';
                 
-                // 获取封面
-                const img = document.getElementById('album-cover');
-                if (song.cover_path) {
-                    img.src = `${this.apiUrl}/api/play?path=${encodeURIComponent(song.cover_path)}`;
-                } else {
-                    img.src = 'https://picsum.photos/id/237/200/200';
-                }
+                this.updateSongCover(song);
 
                 const playUrl = `${this.apiUrl}/api/play?path=${encodeURIComponent(song.path)}`;
                 // 只有路径变了才重载
                 if (this.audio.src !== playUrl) {
                     this.audio.src = playUrl;
+                    this.setPlaybackSpeed(this.playbackSpeed, false);
                     if (autoPlay) {
                         this.play();
                     } else {
@@ -796,7 +960,20 @@
                 else this.play();
             }
 
+            setPlaybackSpeed(value, persist = true) {
+                const speed = Number(value);
+                const supported = [0.5, 0.75, 1, 1.25, 1.5, 1.75, 2, 2.5, 3];
+                this.playbackSpeed = supported.includes(speed) ? speed : 1;
+                this.audio.preservesPitch = true;
+                this.audio.defaultPlaybackRate = this.playbackSpeed;
+                this.audio.playbackRate = this.playbackSpeed;
+                const select = document.getElementById('playback-speed');
+                if (select) select.value = String(this.playbackSpeed);
+                if (persist) this.persistStateThrottled(true);
+            }
+
             play() {
+                this.setPlaybackSpeed(this.playbackSpeed, false);
                 this.audio.play().catch(e => console.error(e));
                 this.isPlaying = true;
                 this.updatePlayBtn();
@@ -1002,7 +1179,9 @@
                     isPlaying: !!this.isPlaying,
                     loopMode: this.loopMode,
                     lyricsMode: this.lyricsMode,
+                    playbackSpeed: this.playbackSpeed,
                     volume: Number.isFinite(this.audio.volume) ? this.audio.volume : 0.7,
+                    muted: !!this.audio.muted,
                     isHeartMode: !!this.isHeartMode,
                     isFavView: !!this.isFavView,
                     playlistVisible: playlist ? !playlist.classList.contains('hidden') : false,
@@ -1043,11 +1222,13 @@
             }
 
             async restoreFromState(state) {
+                this.setPlaybackSpeed(state.playbackSpeed ?? 1, false);
                 const vol = Number(state.volume);
                 if (Number.isFinite(vol) && vol >= 0 && vol <= 1) {
                     this.audio.volume = vol;
-                    document.getElementById('volume-bar').style.width = `${vol * 100}%`;
                 }
+                this.audio.muted = state.muted === true;
+                this.updateVolumeUI();
 
                 const playlist = document.getElementById('playlist');
                 const items = document.getElementById('playlist-items');
